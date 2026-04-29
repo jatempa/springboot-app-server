@@ -20,4 +20,8 @@ public class OrderItemId implements Serializable {
 
     @Column(name = "product_id")
     private Integer productId;
+
+    public static OrderItemId of(Integer orderId, Integer productId) {
+        return new OrderItemId(orderId, productId);
+    }
 }
