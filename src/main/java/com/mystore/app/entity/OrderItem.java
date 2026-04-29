@@ -4,23 +4,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import lombok.EqualsAndHashCode;
 
-import java.io.Serializable;
 import java.math.BigDecimal;
-
-@Embeddable
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@EqualsAndHashCode
-class OrderItemId implements Serializable {
-    @Column(name = "order_id")
-    private Integer orderId;
-
-    @Column(name = "product_id")
-    private Integer productId;
-}
 
 @Entity
 @Table(name = "order_items", uniqueConstraints = {
