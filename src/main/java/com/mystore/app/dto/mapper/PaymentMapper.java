@@ -4,7 +4,7 @@ import com.mystore.app.dto.*;
 import com.mystore.app.entity.*;
 import org.mapstruct.*;
 
-@Mapper(componentModel = "spring", uses = {OrderMapper.class})
+@Mapper(componentModel = "spring")
 public interface PaymentMapper {
 
     @Mapping(target = "paymentId", ignore = true)
@@ -14,7 +14,7 @@ public interface PaymentMapper {
     @Mapping(source = "status", target = "status", qualifiedByName = "stringToStatus")
     Payment toEntity(PaymentRequestDTO dto);
 
-    @Mapping(source = "order", target = "order")
+    @Mapping(target = "order", ignore = true)
     PaymentResponseDTO toResponse(Payment entity);
 
     @Named("stringToMethod")
