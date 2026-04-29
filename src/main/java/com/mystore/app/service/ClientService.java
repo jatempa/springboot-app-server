@@ -28,7 +28,7 @@ public class ClientService {
     private final RegionRepository regionRepository;
 
     public List<ClientResponseDTO> findAll() {
-        return repository.findAll().stream()
+        return repository.findAllWithRegion().stream()
             .map(mapper::toResponse)
             .toList();
     }
