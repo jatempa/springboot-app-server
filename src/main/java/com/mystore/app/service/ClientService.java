@@ -11,12 +11,13 @@ import com.mystore.app.repository.ClientRepository;
 import com.mystore.app.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -27,10 +28,8 @@ public class ClientService {
     private final ClientMapper mapper;
     private final RegionRepository regionRepository;
 
-    public List<ClientResponseDTO> findAll() {
-        return repository.findAllWithRegion().stream()
-            .map(mapper::toResponse)
-            .toList();
+    public Page<ClientResponseDTO> findAll(Pageable pageable) {
+        return repository.findAll(pageable).map(mapper::toResponse);
     }
 
     public ClientResponseDTO findById(Integer id) {

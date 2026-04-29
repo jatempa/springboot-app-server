@@ -6,9 +6,10 @@ import com.mystore.app.service.ClientService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/clients")
@@ -18,8 +19,8 @@ public class ClientController {
     private final ClientService service;
 
     @GetMapping
-    public List<ClientResponseDTO> findAll() {
-        return service.findAll();
+    public Page<ClientResponseDTO> findAll(@PageableDefault(size = 20) Pageable pageable) {
+        return service.findAll(pageable);
     }
 
     @GetMapping("/{id}")
