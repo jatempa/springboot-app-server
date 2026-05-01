@@ -1,5 +1,6 @@
 package com.mystore.app.controller;
 
+import com.mystore.app.dto.PagedReviewResponseDTO;
 import com.mystore.app.dto.ReviewRequestDTO;
 import com.mystore.app.dto.ReviewResponseDTO;
 import com.mystore.app.service.ReviewService;
@@ -18,8 +19,10 @@ public class ReviewController {
     private final ReviewService service;
 
     @GetMapping
-    public List<ReviewResponseDTO> findAll() {
-        return service.findAll();
+    public PagedReviewResponseDTO findAll(
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String cursor) {
+        return service.findAllPaged(pageSize, cursor);
     }
 
     @GetMapping("/{id}")

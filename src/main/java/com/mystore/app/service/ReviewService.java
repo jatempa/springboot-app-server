@@ -1,11 +1,15 @@
 package com.mystore.app.service;
 
+import com.mystore.app.dto.PagedReviewResponseDTO;
 import com.mystore.app.dto.ReviewRequestDTO;
 import com.mystore.app.dto.ReviewResponseDTO;
 import com.mystore.app.dto.mapper.ReviewMapper;
 import com.mystore.app.entity.*;
 import com.mystore.app.repository.*;
+import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +32,38 @@ public class ReviewService {
         return repository.findAll().stream()
             .map(mapper::toResponse)
             .toList();
+    }
+
+    public PagedReviewResponseDTO findAllPaged(int pageSize, String cursor) {
+        PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
+
+        Page<Review> page;
+        if (cursor == null || cursor.isBlank()) {
+            page = repository.findAllOrderByReviewedAtDescReviewIdDesc(pageRequest);
+        } else {
+            CursorUtils.CursorData cursorData = CursorUtils.decodeCursor(cursor);
+            page = repository.findByKeyset(cursorData.timestamp(), cursorData.id(), pageRequest);
+        }
+
+        List<Review> reviews = page.getContent();
+        boolean hasMore = reviews.size() > pageSize;
+
+        if (hasMore) {
+            reviews = reviews.subList(0, pageSize);
+        }
+
+        String nextCursor = null;
+        if (hasMore && !reviews.isEmpty()) {
+            Review last = reviews.get(reviews.size() - 1);
+            nextCursor = CursorUtils.encodeCursor(last.getReviewedAt(), last.getReviewId());
+        }
+
+        return new PagedReviewResponseDTO(
+            reviews.stream().map(mapper::toResponse).toList(),
+            nextCursor,
+            hasMore,
+            pageSize
+        );
     }
 
     public ReviewResponseDTO findById(Integer id) {
