@@ -14,7 +14,7 @@ public interface PaymentMapper {
     @Mapping(source = "status", target = "status", qualifiedByName = "stringToStatus")
     Payment toEntity(PaymentRequestDTO dto);
 
-    @Mapping(target = "order", ignore = true)
+    @Mapping(source = "order.orderId", target = "orderId")
     PaymentResponseDTO toResponse(Payment entity);
 
     @Named("stringToMethod")

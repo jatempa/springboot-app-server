@@ -12,7 +12,7 @@ import java.time.Instant;
 @AllArgsConstructor
 public class PaymentResponseDTO {
     private Integer paymentId;
-    private OrderResponseDTO order;
+    private Integer orderId;
     private Instant paidAt;
     private BigDecimal amount;
     private String method;

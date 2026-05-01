@@ -1,5 +1,6 @@
 package com.mystore.app.controller;
 
+import com.mystore.app.dto.PagedPaymentResponseDTO;
 import com.mystore.app.dto.PaymentRequestDTO;
 import com.mystore.app.dto.PaymentResponseDTO;
 import com.mystore.app.service.PaymentService;
@@ -18,8 +19,10 @@ public class PaymentController {
     private final PaymentService service;
 
     @GetMapping
-    public List<PaymentResponseDTO> findAll() {
-        return service.findAll();
+    public PagedPaymentResponseDTO findAll(
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String cursor) {
+        return service.findAllPaged(pageSize, cursor);
     }
 
     @GetMapping("/{id}")
