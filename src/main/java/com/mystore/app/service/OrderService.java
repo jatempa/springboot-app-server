@@ -10,6 +10,9 @@ import com.mystore.app.entity.*;
 import com.mystore.app.repository.*;
 import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -40,18 +43,21 @@ public class OrderService {
                 .toList();
     }
 
+    @Cacheable(cacheNames = "order", key = "#id")
     public OrderResponseDTO findById(Integer id) {
         return repository.findById(id)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
     }
 
+    @Cacheable(cacheNames = "orders", key = "'client:' + #clientId")
     public List<OrderResponseDTO> findByClientId(Integer clientId) {
         return repository.findByClient_ClientId(clientId).stream()
                 .map(mapper::toResponse)
                 .toList();
     }
 
+    @CacheEvict(cacheNames = "orders", allEntries = true)
     public OrderResponseDTO save(OrderRequestDTO dto) {
         Order entity = mapper.toEntity(dto);
 
@@ -71,6 +77,10 @@ public class OrderService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "order", key = "#id"),
+        @CacheEvict(cacheNames = "orders", allEntries = true)
+    })
     public OrderResponseDTO update(Integer id, OrderRequestDTO dto) {
         Order entity = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
@@ -98,6 +108,10 @@ public class OrderService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "order", key = "#orderId"),
+        @CacheEvict(cacheNames = "orders", allEntries = true)
+    })
     public OrderResponseDTO addItem(Integer orderId, OrderItemRequestDTO itemDto) {
         Order order = repository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
@@ -119,6 +133,10 @@ public class OrderService {
         return mapper.toResponse(order);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "order", key = "#id"),
+        @CacheEvict(cacheNames = "orders", allEntries = true)
+    })
     public void delete(Integer id) {
         if (!repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
@@ -126,6 +144,7 @@ public class OrderService {
         repository.deleteById(id);
     }
 
+    @Cacheable(cacheNames = "orders", key = "#pageSize + ':' + (#cursor ?: 'first')")
     public PagedOrderResponseDTO findAllPaged(int pageSize, String cursor) {
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
 

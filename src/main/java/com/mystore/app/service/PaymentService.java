@@ -8,6 +8,9 @@ import com.mystore.app.entity.*;
 import com.mystore.app.repository.*;
 import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -33,6 +36,7 @@ public class PaymentService {
             .toList();
     }
 
+    @Cacheable(cacheNames = "payments", key = "#pageSize + ':' + (#cursor ?: 'first')")
     public PagedPaymentResponseDTO findAllPaged(int pageSize, String cursor) {
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
 
@@ -65,18 +69,21 @@ public class PaymentService {
         );
     }
 
+    @Cacheable(cacheNames = "payment", key = "#id")
     public PaymentResponseDTO findById(Integer id) {
         return repository.findByIdWithOrder(id)
             .map(mapper::toResponse)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
     }
 
+    @Cacheable(cacheNames = "payments", key = "'order:' + #orderId")
     public List<PaymentResponseDTO> findByOrderId(Integer orderId) {
         return repository.findByOrderIdWithOrder(orderId).stream()
             .map(mapper::toResponse)
             .toList();
     }
 
+    @CacheEvict(cacheNames = "payments", allEntries = true)
     public PaymentResponseDTO save(PaymentRequestDTO dto) {
         Order order = orderRepository.findById(dto.getOrderId())
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order not found"));
@@ -89,6 +96,10 @@ public class PaymentService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "payment", key = "#id"),
+        @CacheEvict(cacheNames = "payments", allEntries = true)
+    })
     public PaymentResponseDTO update(Integer id, PaymentRequestDTO dto) {
         Payment entity = repository.findByIdWithOrder(id)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found"));
@@ -106,6 +117,10 @@ public class PaymentService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "payment", key = "#id"),
+        @CacheEvict(cacheNames = "payments", allEntries = true)
+    })
     public void delete(Integer id) {
         if (!repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Payment not found");

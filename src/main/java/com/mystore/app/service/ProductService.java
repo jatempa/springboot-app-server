@@ -10,6 +10,9 @@ import com.mystore.app.repository.CategoryRepository;
 import com.mystore.app.repository.ProductRepository;
 import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -37,6 +40,7 @@ public class ProductService {
                 .toList();
     }
 
+    @Cacheable(cacheNames = "products", key = "#pageSize + ':' + (#cursor ?: 'first')")
     public PagedProductResponseDTO findAllPaged(int pageSize, String cursor) {
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
 
@@ -69,18 +73,21 @@ public class ProductService {
         );
     }
 
+    @Cacheable(cacheNames = "product", key = "#id")
     public ProductResponseDTO findById(Integer id) {
         return repository.findById(id)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
     }
 
+    @Cacheable(cacheNames = "product", key = "'sku:' + #sku")
     public ProductResponseDTO findBySku(String sku) {
         return repository.findBySku(sku)
                 .map(mapper::toResponse)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
     }
 
+    @CacheEvict(cacheNames = "products", allEntries = true)
     public ProductResponseDTO save(ProductRequestDTO dto) {
         Product entity = mapper.toEntity(dto);
         if (dto.getCategoryId() != null) {
@@ -92,6 +99,10 @@ public class ProductService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "product", allEntries = true),
+        @CacheEvict(cacheNames = "products", allEntries = true)
+    })
     public ProductResponseDTO update(Integer id, ProductRequestDTO dto) {
         Product entity = repository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
@@ -114,6 +125,10 @@ public class ProductService {
         return mapper.toResponse(entity);
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "product", allEntries = true),
+        @CacheEvict(cacheNames = "products", allEntries = true)
+    })
     public void delete(Integer id) {
         if (!repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
