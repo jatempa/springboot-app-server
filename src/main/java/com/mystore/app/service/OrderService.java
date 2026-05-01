@@ -8,17 +8,15 @@ import com.mystore.app.dto.mapper.OrderMapper;
 import com.mystore.app.dto.mapper.OrderItemMapper;
 import com.mystore.app.entity.*;
 import com.mystore.app.repository.*;
+import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -38,32 +36,32 @@ public class OrderService {
 
     public List<OrderResponseDTO> findAll() {
         return repository.findAll().stream()
-            .map(mapper::toResponse)
-            .toList();
+                .map(mapper::toResponse)
+                .toList();
     }
 
     public OrderResponseDTO findById(Integer id) {
         return repository.findById(id)
-            .map(mapper::toResponse)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+                .map(mapper::toResponse)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
     }
 
     public List<OrderResponseDTO> findByClientId(Integer clientId) {
         return repository.findByClient_ClientId(clientId).stream()
-            .map(mapper::toResponse)
-            .toList();
+                .map(mapper::toResponse)
+                .toList();
     }
 
     public OrderResponseDTO save(OrderRequestDTO dto) {
         Order entity = mapper.toEntity(dto);
 
         Client client = clientRepository.findById(dto.getClientId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Client not found"));
         entity.setClient(client);
 
         if (dto.getEmployeeId() != null) {
             Employee employee = employeeRepository.findById(dto.getEmployeeId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Employee not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Employee not found"));
             entity.setEmployee(employee);
         }
 
@@ -75,7 +73,7 @@ public class OrderService {
 
     public OrderResponseDTO update(Integer id, OrderRequestDTO dto) {
         Order entity = repository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
 
         if (dto.getShipDate() != null) {
             entity.setShipDate(dto.getShipDate());
@@ -102,10 +100,10 @@ public class OrderService {
 
     public OrderResponseDTO addItem(Integer orderId, OrderItemRequestDTO itemDto) {
         Order order = repository.findById(orderId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
 
         Product product = productRepository.findById(itemDto.getProductId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product not found"));
 
         OrderItem item = new OrderItem();
         OrderItemId itemId = OrderItemId.of(orderId, itemDto.getProductId());
@@ -121,71 +119,48 @@ public class OrderService {
         return mapper.toResponse(order);
     }
 
-public void delete(Integer id) {
-    if (!repository.existsById(id)) {
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
-    }
-    repository.deleteById(id);
-}
-
-public PagedOrderResponseDTO findAllPaged(int pageSize, String cursor) {
-    PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
-
-    List<Integer> ids;
-    if (cursor == null || cursor.isBlank()) {
-        ids = repository.findOrderIdsPaged(pageRequest);
-    } else {
-        CursorData cursorData = decodeCursor(cursor);
-        ids = repository.findOrderIdsByKeyset(cursorData.orderDate(), cursorData.orderId(), pageRequest);
+    public void delete(Integer id) {
+        if (!repository.existsById(id)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
+        }
+        repository.deleteById(id);
     }
 
-    boolean hasMore = ids.size() > pageSize;
-    if (hasMore) {
-        ids = ids.subList(0, pageSize);
-    }
+    public PagedOrderResponseDTO findAllPaged(int pageSize, String cursor) {
+        PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
 
-    String nextCursor = null;
-    List<OrderResponseDTO> dtos = List.of();
+        List<Integer> ids;
+        if (cursor == null || cursor.isBlank()) {
+            ids = repository.findOrderIdsPaged(pageRequest);
+        } else {
+            CursorUtils.CursorData cursorData = CursorUtils.decodeCursor(cursor);
+            ids = repository.findOrderIdsByKeyset(cursorData.timestamp(), cursorData.id(), pageRequest);
+        }
 
-    if (!ids.isEmpty()) {
-        Map<Integer, Order> orderMap = repository.findWithToOnesByIds(ids).stream()
-                .collect(Collectors.toMap(Order::getOrderId, o -> o));
-        repository.findWithItemsByIds(ids);
-        repository.findWithPaymentsByIds(ids);
-
-        List<Order> orders = ids.stream().map(orderMap::get).toList();
-
+        boolean hasMore = ids.size() > pageSize;
         if (hasMore) {
-            Order last = orders.get(orders.size() - 1);
-            nextCursor = encodeCursor(last.getOrderDate(), last.getOrderId());
+            ids = ids.subList(0, pageSize);
         }
 
-        dtos = orders.stream().map(mapper::toResponse).toList();
-    }
+        String nextCursor = null;
+        List<OrderResponseDTO> dtos = List.of();
 
-    return new PagedOrderResponseDTO(dtos, nextCursor, hasMore, pageSize);
-}
+        if (!ids.isEmpty()) {
+            Map<Integer, Order> orderMap = repository.findWithToOnesByIds(ids).stream()
+                    .collect(Collectors.toMap(Order::getOrderId, o -> o));
+            repository.findWithItemsByIds(ids);
+            repository.findWithPaymentsByIds(ids);
 
-private String encodeCursor(Instant orderDate, Integer orderId) {
-    String raw = orderDate.getEpochSecond() + ":" + orderDate.getNano() + ":" + orderId;
-    return Base64.getUrlEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-}
+            List<Order> orders = ids.stream().map(orderMap::get).toList();
 
-private CursorData decodeCursor(String cursor) {
-    try {
-        String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-        String[] parts = raw.split(":");
-        if (parts.length != 3) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor format");
+            if (hasMore) {
+                Order last = orders.get(orders.size() - 1);
+                nextCursor = CursorUtils.encodeCursor(last.getOrderDate(), last.getOrderId());
+            }
+
+            dtos = orders.stream().map(mapper::toResponse).toList();
         }
-        long epochSecond = Long.parseLong(parts[0]);
-        int nano = Integer.parseInt(parts[1]);
-        int orderId = Integer.parseInt(parts[2]);
-        return new CursorData(Instant.ofEpochSecond(epochSecond, nano), orderId);
-    } catch (Exception e) {
-        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor", e);
-    }
-}
 
-private record CursorData(Instant orderDate, Integer orderId) {}
+        return new PagedOrderResponseDTO(dtos, nextCursor, hasMore, pageSize);
+    }
 }

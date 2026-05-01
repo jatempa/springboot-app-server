@@ -8,6 +8,7 @@ import com.mystore.app.entity.Category;
 import com.mystore.app.entity.Product;
 import com.mystore.app.repository.CategoryRepository;
 import com.mystore.app.repository.ProductRepository;
+import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -32,8 +33,8 @@ public class ProductService {
 
     public List<ProductResponseDTO> findAll() {
         return repository.findAll().stream()
-            .map(mapper::toResponse)
-            .toList();
+                .map(mapper::toResponse)
+                .toList();
     }
 
     public PagedProductResponseDTO findAllPaged(int pageSize, String cursor) {
@@ -43,8 +44,8 @@ public class ProductService {
         if (cursor == null || cursor.isBlank()) {
             page = repository.findAllByOrderByCreatedAtDescProductIdDesc(pageRequest);
         } else {
-            CursorData cursorData = decodeCursor(cursor);
-            page = repository.findByKeyset(cursorData.createdAt(), cursorData.productId(), pageRequest);
+            CursorUtils.CursorData cursorData = CursorUtils.decodeCursor(cursor);
+            page = repository.findByKeyset(cursorData.timestamp(), cursorData.id(), pageRequest);
         }
 
         List<Product> products = page.getContent();
@@ -57,34 +58,34 @@ public class ProductService {
         String nextCursor = null;
         if (hasMore && !products.isEmpty()) {
             Product lastProduct = products.get(products.size() - 1);
-            nextCursor = encodeCursor(lastProduct.getCreatedAt(), lastProduct.getProductId());
+            nextCursor = CursorUtils.encodeCursor(lastProduct.getCreatedAt(), lastProduct.getProductId());
         }
 
         return new PagedProductResponseDTO(
-            products.stream().map(mapper::toResponse).toList(),
-            nextCursor,
-            hasMore,
-            pageSize
+                products.stream().map(mapper::toResponse).toList(),
+                nextCursor,
+                hasMore,
+                pageSize
         );
     }
 
     public ProductResponseDTO findById(Integer id) {
         return repository.findById(id)
-            .map(mapper::toResponse)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+                .map(mapper::toResponse)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
     }
 
     public ProductResponseDTO findBySku(String sku) {
         return repository.findBySku(sku)
-            .map(mapper::toResponse)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+                .map(mapper::toResponse)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
     }
 
     public ProductResponseDTO save(ProductRequestDTO dto) {
         Product entity = mapper.toEntity(dto);
         if (dto.getCategoryId() != null) {
             Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
             entity.setCategory(category);
         }
         entity = repository.save(entity);
@@ -93,7 +94,7 @@ public class ProductService {
 
     public ProductResponseDTO update(Integer id, ProductRequestDTO dto) {
         Product entity = repository.findById(id)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
 
         entity.setSku(dto.getSku());
         entity.setProductName(dto.getProductName());
@@ -105,7 +106,7 @@ public class ProductService {
 
         if (dto.getCategoryId() != null) {
             Category category = categoryRepository.findById(dto.getCategoryId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Category not found"));
             entity.setCategory(category);
         }
 
@@ -117,29 +118,7 @@ public class ProductService {
         if (!repository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found");
         }
+
         repository.deleteById(id);
     }
-
-    private String encodeCursor(Instant createdAt, Integer productId) {
-        String raw = createdAt.getEpochSecond() + ":" + createdAt.getNano() + ":" + productId;
-        return Base64.getUrlEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private CursorData decodeCursor(String cursor) {
-        try {
-            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            String[] parts = raw.split(":");
-            if (parts.length != 3) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor format");
-            }
-            long epochSecond = Long.parseLong(parts[0]);
-            int nano = Integer.parseInt(parts[1]);
-            int productId = Integer.parseInt(parts[2]);
-            return new CursorData(Instant.ofEpochSecond(epochSecond, nano), productId);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor", e);
-        }
-    }
-
-    private record CursorData(Instant createdAt, Integer productId) {}
 }
