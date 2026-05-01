@@ -39,7 +39,7 @@ The app loads environment variables via `dotenv` library at startup. **Do not co
 
 **REST endpoints**: All endpoints are prefixed with `/api/{resource}` (e.g., `/api/payments`, `/api/products`)
 
-**Domain entities**: Client, Product, Order, OrderItem (composite key), Payment, Category, Employee, Region, Review
+**Domain entities**: Client, Product, Order, OrderItem (composite key), Payment, Category, Employee, Region, Review, plus enums: PaymentStatus, PaymentMethod, Channel, OrderStatus, Role, Gender, ClientSegment
 
 **DTO Mapping**: 
 - DTOs live in `dto/` with `Request`/`Response` suffix naming
@@ -47,9 +47,19 @@ The app loads environment variables via `dotenv` library at startup. **Do not co
 - **Never map manually in controllers or services**
 - Mapper implementation classes are generated during compilation
 
-**Pagination**: Use cursor-based (keyset) pagination, NOT offset-based. The cursor is a Base64-encoded timestamp (`createdAt`). See `ProductRepository` for example implementation using `WHERE createdAt > :cursor` style queries.
+**Pagination**: Cursor-based (keyset) pagination is implemented for **Payment**, **Order**, and **Product** entities. The cursor is a Base64-encoded `timestamp:id` pair (not just timestamp). See:
+- `CursorUtils` utility class for `encodeCursor()` and `decodeCursor()` methods
+- `Paged{Payment,Order,Product}ResponseDTO` for paginated response format
+- Each repository has `findAllOrderBy*` and `findByKeyset()` methods for efficient keyset pagination
+- **Never use offset-based pagination** - always use keyset pagination pattern
 
 **Entity relationships**: Use `FetchType.LAZY` by default. Be aware of N+1 query problems when repositories return entities that are later mapped to DTOs accessing lazy-loaded relationships.
+
+**N+1 Query Optimization**: Repositories use `JOIN FETCH` in queries to eagerly load required relationships in a single query, avoiding N+1 problems. For complex scenarios with multiple collections (e.g., Order with items and payments), the pattern uses:
+1. A dedicated `JOIN FETCH` query for the main entity with its direct relationships (Order → Client, Client.Region, Employee, Employee.Region)
+2. Separate IN-clause queries for collections (Order → OrderItems, Order → Payments) to avoid Hibernate cartesian product issues
+
+Example optimized queries can be found in `OrderRepository` and `PaymentRepository`.
 
 **Hibernate**: Configured with `ddl-auto: update` - database schema updates automatically on startup.
 
