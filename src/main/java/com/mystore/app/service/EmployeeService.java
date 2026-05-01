@@ -26,7 +26,7 @@ public class EmployeeService {
     private final RegionRepository regionRepository;
 
     public List<EmployeeResponseDTO> findAll() {
-        return repository.findAll().stream()
+        return repository.findAllWithDetails().stream()
             .map(mapper::toResponse)
             .toList();
     }
