@@ -39,12 +39,26 @@ Spring Boot 4.0.6 REST API for store management. Java 21, PostgreSQL, Hibernate 
 
 All REST endpoints are rooted at `/api/{resource}`. Base package: `com.mystore.app`.
 
-**Domain entities**: Client, Product, Order, OrderItem (composite key), Payment, Category, Employee, Region, Review.
+**Domain entities**: Client, Product, Order, OrderItem (composite key), Payment, Category, Employee, Region, Review. Enums: PaymentStatus, PaymentMethod, Channel, OrderStatus, Role, Gender, ClientSegment.
 
-**DTOs live in** `dto/` with `Request`/`Response` suffix naming. MapStruct mappers in `dto/mapper/` handle all entity↔DTO conversions — never map manually in controllers or services.
+**DTOs live in** `dto/` with `Request`/`Response` suffix naming. MapStruct mappers in `dto/mapper/` handle all entity↔DTO conversions — never map manually in controllers or services. Paginated endpoints return a `Paged{Entity}ResponseDTO`.
 
 ## Pagination
 
-`ProductService` implements cursor-based (keyset) pagination. The cursor is a Base64-encoded timestamp (`createdAt`) used in `ProductRepository` with a `WHERE createdAt > :cursor` style query. Use this same approach when adding pagination to other entities — do not use offset-based pagination.
+Cursor-based (keyset) pagination is implemented for **Product**, **Order**, and **Payment**. The cursor is a Base64-encoded `timestamp:id` pair managed by the shared `CursorUtils` utility class in `util/`:
+
+- `CursorUtils.encodeCursor(Instant, Integer)` — encodes the cursor
+- `CursorUtils.decodeCursor(String)` — decodes to a `CursorData(timestamp, id)` record
+
+Use `CursorUtils` for all new pagination — never re-implement encoding inline and never use offset-based pagination.
 
 `@EnableSpringDataWebSupport` is set on the main application class with `CAMEL_CASE_STRATEGY` DTO serialization mode for `Page` responses.
+
+## N+1 Query Optimization
+
+Use `JOIN FETCH` in repository queries to eagerly load required relationships and avoid N+1 problems. For entities with multiple collections (e.g., Order has both `items` and `payments`), Hibernate's cartesian product restriction requires splitting into two queries:
+
+1. A `JOIN FETCH` query for the root entity and its scalar/single-value associations (Order → Client, Client.Region, Employee, Employee.Region).
+2. Separate `IN`-clause queries for each collection (Order → OrderItems, Order → Payments).
+
+See `OrderRepository` and `PaymentRepository` for reference implementations. Always use `FetchType.LAZY` on entity relationships and resolve loading eagerly in the repository query layer.
