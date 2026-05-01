@@ -2,19 +2,26 @@ package com.mystore.app.service;
 
 import com.mystore.app.dto.OrderRequestDTO;
 import com.mystore.app.dto.OrderResponseDTO;
+import com.mystore.app.dto.PagedOrderResponseDTO;
 import com.mystore.app.dto.OrderItemRequestDTO;
 import com.mystore.app.dto.mapper.OrderMapper;
 import com.mystore.app.dto.mapper.OrderItemMapper;
 import com.mystore.app.entity.*;
 import com.mystore.app.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -114,10 +121,71 @@ public class OrderService {
         return mapper.toResponse(order);
     }
 
-    public void delete(Integer id) {
-        if (!repository.existsById(id)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
-        }
-        repository.deleteById(id);
+public void delete(Integer id) {
+    if (!repository.existsById(id)) {
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found");
     }
+    repository.deleteById(id);
+}
+
+public PagedOrderResponseDTO findAllPaged(int pageSize, String cursor) {
+    PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
+
+    List<Integer> ids;
+    if (cursor == null || cursor.isBlank()) {
+        ids = repository.findOrderIdsPaged(pageRequest);
+    } else {
+        CursorData cursorData = decodeCursor(cursor);
+        ids = repository.findOrderIdsByKeyset(cursorData.orderDate(), cursorData.orderId(), pageRequest);
+    }
+
+    boolean hasMore = ids.size() > pageSize;
+    if (hasMore) {
+        ids = ids.subList(0, pageSize);
+    }
+
+    String nextCursor = null;
+    List<OrderResponseDTO> dtos = List.of();
+
+    if (!ids.isEmpty()) {
+        Map<Integer, Order> orderMap = repository.findWithToOnesByIds(ids).stream()
+                .collect(Collectors.toMap(Order::getOrderId, o -> o));
+        repository.findWithItemsByIds(ids);
+        repository.findWithPaymentsByIds(ids);
+
+        List<Order> orders = ids.stream().map(orderMap::get).toList();
+
+        if (hasMore) {
+            Order last = orders.get(orders.size() - 1);
+            nextCursor = encodeCursor(last.getOrderDate(), last.getOrderId());
+        }
+
+        dtos = orders.stream().map(mapper::toResponse).toList();
+    }
+
+    return new PagedOrderResponseDTO(dtos, nextCursor, hasMore, pageSize);
+}
+
+private String encodeCursor(Instant orderDate, Integer orderId) {
+    String raw = orderDate.getEpochSecond() + ":" + orderDate.getNano() + ":" + orderId;
+    return Base64.getUrlEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+}
+
+private CursorData decodeCursor(String cursor) {
+    try {
+        String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+        String[] parts = raw.split(":");
+        if (parts.length != 3) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor format");
+        }
+        long epochSecond = Long.parseLong(parts[0]);
+        int nano = Integer.parseInt(parts[1]);
+        int orderId = Integer.parseInt(parts[2]);
+        return new CursorData(Instant.ofEpochSecond(epochSecond, nano), orderId);
+    } catch (Exception e) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor", e);
+    }
+}
+
+private record CursorData(Instant orderDate, Integer orderId) {}
 }

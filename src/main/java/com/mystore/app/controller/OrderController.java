@@ -3,6 +3,7 @@ package com.mystore.app.controller;
 import com.mystore.app.dto.OrderRequestDTO;
 import com.mystore.app.dto.OrderResponseDTO;
 import com.mystore.app.dto.OrderItemRequestDTO;
+import com.mystore.app.dto.PagedOrderResponseDTO;
 import com.mystore.app.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,17 +17,19 @@ import java.util.List;
 @RequiredArgsConstructor
 public class OrderController {
 
-    private final OrderService service;
+private final OrderService service;
 
-    @GetMapping
-    public List<OrderResponseDTO> findAll() {
-        return service.findAll();
-    }
+@GetMapping
+public PagedOrderResponseDTO findAll(
+        @RequestParam(defaultValue = "20") int pageSize,
+        @RequestParam(required = false) String cursor) {
+    return service.findAllPaged(pageSize, cursor);
+}
 
-    @GetMapping("/{id}")
-    public OrderResponseDTO findById(@PathVariable Integer id) {
-        return service.findById(id);
-    }
+@GetMapping("/{id}")
+public OrderResponseDTO findById(@PathVariable Integer id) {
+    return service.findById(id);
+}
 
     @GetMapping("/client/{clientId}")
     public List<OrderResponseDTO> findByClientId(@PathVariable Integer clientId) {
