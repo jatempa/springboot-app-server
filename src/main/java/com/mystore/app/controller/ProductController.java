@@ -1,5 +1,6 @@
 package com.mystore.app.controller;
 
+import com.mystore.app.dto.PagedProductResponseDTO;
 import com.mystore.app.dto.ProductRequestDTO;
 import com.mystore.app.dto.ProductResponseDTO;
 import com.mystore.app.service.ProductService;
@@ -18,8 +19,10 @@ public class ProductController {
     private final ProductService service;
 
     @GetMapping
-    public List<ProductResponseDTO> findAll() {
-        return service.findAll();
+    public PagedProductResponseDTO findAll(
+            @RequestParam(defaultValue = "20") int pageSize,
+            @RequestParam(required = false) String cursor) {
+        return service.findAllPaged(pageSize, cursor);
     }
 
     @GetMapping("/{id}")
