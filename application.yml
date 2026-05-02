@@ -21,10 +21,23 @@ spring:
 
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
       connect-timeout: 500ms
       timeout: 500ms
+  rabbitmq:
+    host: ${RABBITMQ_HOST}
+    port: ${RABBITMQ_PORT}
+    username: ${RABBITMQ_USER}
+    password: ${RABBITMQ_PASS}
+
+app:
+  reports:
+    directory: reports
+  rabbitmq:
+    exchange: orders.exchange
+    queue: orders.report.queue
+    routing-key: orders.report
 
 server:
   port: 8080
