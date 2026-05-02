@@ -4,13 +4,22 @@ import com.mystore.app.dto.OrderRequestDTO;
 import com.mystore.app.dto.OrderResponseDTO;
 import com.mystore.app.dto.OrderItemRequestDTO;
 import com.mystore.app.dto.PagedOrderResponseDTO;
+import com.mystore.app.messaging.OrderReportPublisher;
+import com.mystore.app.service.OrderReportService;
 import com.mystore.app.service.OrderService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -18,6 +27,8 @@ import java.util.List;
 public class OrderController {
 
 private final OrderService service;
+private final OrderReportService orderReportService;
+private final OrderReportPublisher orderReportPublisher;
 
 @GetMapping
 public PagedOrderResponseDTO findAll(
@@ -55,5 +66,31 @@ public OrderResponseDTO findById(@PathVariable Integer id) {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Integer id) {
         service.delete(id);
+    }
+    
+
+    @PostMapping("/{id}/report")
+    public ResponseEntity<Map<String, String>> enqueueReport(@PathVariable Integer id) {
+        service.findById(id); // validates the order exists before enqueuing
+        orderReportPublisher.publishOrderReport(id);
+        return ResponseEntity.accepted()
+                .body(Map.of(
+                        "message", "Report generation queued for order " + id,
+                        "statusUrl", "/api/orders/" + id + "/report"
+                ));
+    }
+
+    @GetMapping("/{id}/report")
+    public ResponseEntity<?> downloadReport(@PathVariable Integer id) {
+        Path reportPath = orderReportService.resolveReportPath(id);
+        if (!Files.exists(reportPath)) {
+            return ResponseEntity.accepted()
+                    .body(Map.of("message", "Report is being generated, please try again shortly"));
+        }
+        Resource resource = new FileSystemResource(reportPath);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"order-" + id + ".pdf\"")
+                .body(resource);
     }
 }
