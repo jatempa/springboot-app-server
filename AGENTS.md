@@ -65,6 +65,33 @@ Example optimized queries can be found in `OrderRepository` and `PaymentReposito
 
 **Important annotation processor config**: Lombok and MapStruct require specific `maven-compiler-plugin` configuration with annotation processor paths in `pom.xml`. This is already configured - do not modify unless you understand the interaction between these two annotation processors.
 
+**RabbitMQ Messaging**: Asynchronous order report generation implemented with RabbitMQ for background PDF processing. The topology uses a direct exchange pattern:
+- **Exchange**: `orders.exchange` (durable, non-auto-delete)
+- **Queue**: `orders.report.queue` (durable)
+- **Routing Key**: `orders.report`
+- **Message**: Integer `orderId` with JSON serialization
+
+**Workflow**: 
+1. Client POSTs to `/api/orders/{id}/report` → returns `202 Accepted` immediately
+2. `OrderReportPublisher` sends orderId to RabbitMQ
+3. `OrderReportConsumer` receives message, fetches order data, generates PDF report
+4. Client polls same endpoint to download PDF when ready (`200 OK`) or check status (`202 Accepted` if still processing)
+
+**Key Components**:
+- `RabbitMQConfig.java` - Declares exchange, queue, binding, and Jackson message converter
+- `OrderReportPublisher.java` - Publishes orderId to configured exchange/routing key
+- `OrderReportConsumer.java` - `@RabbitListener` processes messages asynchronously
+- `OrderReportService.java` - Generates PDF reports using OpenPDF library
+- `OrderController.java` - `/api/orders/{id}/report` endpoints for enqueue and download
+
+**RabbitMQ Environment Variables**: Add to `.env` file:
+```bash
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASS=guest
+```
+
 ## Testing
 
 The project uses Spring Boot's default testing setup. Test files should mirror the main source structure under `src/test/java/`. When writing tests for repositories or services that use MapStruct mappers, remember that mapper implementations are generated at compile-time and available in tests.
