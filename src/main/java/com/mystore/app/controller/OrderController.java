@@ -49,7 +49,9 @@ public OrderResponseDTO findById(@PathVariable Integer id) {
 
     @PostMapping
     public ResponseEntity<OrderResponseDTO> save(@RequestBody OrderRequestDTO dto) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.save(dto));
+        var savedOrder = service.save(dto);
+        orderReportPublisher.publishOrderReport(savedOrder.getOrderId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedOrder);
     }
 
     @PutMapping("/{id}")
