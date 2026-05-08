@@ -8,6 +8,7 @@ import com.mystore.app.entity.Category;
 import com.mystore.app.entity.Product;
 import com.mystore.app.repository.CategoryRepository;
 import com.mystore.app.repository.ProductRepository;
+import com.mystore.app.repository.ProductSpecification;
 import com.mystore.app.util.CursorUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
@@ -15,14 +16,13 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Base64;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -40,8 +40,72 @@ public class ProductService {
                 .toList();
     }
 
-    @Cacheable(cacheNames = "products", key = "#pageSize + ':' + (#cursor ?: 'first')")
-    public PagedProductResponseDTO findAllPaged(int pageSize, String cursor) {
+    @Cacheable(cacheNames = "products", key = "#pageSize + ':' + (#cursor ?: 'first') + ':' + (#sku ?: '') + ':' + (#productName ?: '') + ':' + (#categoryName ?: '') + ':' + (#sortBy ?: 'createdAt') + ':' + (#sortDir ?: 'desc')")
+    public PagedProductResponseDTO findAllPaged(int pageSize, String cursor,
+            String sku, String productName, String categoryName,
+            String sortBy, String sortDir) {
+
+        boolean useSpec = (sku != null && !sku.isBlank())
+            || (productName != null && !productName.isBlank())
+            || (categoryName != null && !categoryName.isBlank())
+            || (sortBy != null && !sortBy.equals("createdAt"));
+
+        if (!useSpec) {
+            return findAllPagedDefault(pageSize, cursor);
+        }
+
+        String resolvedSortBy = (sortBy == null || sortBy.isBlank()) ? "createdAt" : sortBy;
+        boolean ascending = "asc".equalsIgnoreCase(sortDir);
+
+        String cursorValue = null;
+        Integer cursorId = null;
+        if (cursor != null && !cursor.isBlank()) {
+            if ("createdAt".equals(resolvedSortBy)) {
+                CursorUtils.CursorData data = CursorUtils.decodeCursor(cursor);
+                cursorValue = data.timestamp().getEpochSecond() + ":" + data.timestamp().getNano();
+                cursorId = data.id();
+            } else {
+                CursorUtils.StringCursorData data = CursorUtils.decodeStringCursor(cursor);
+                cursorValue = data.value();
+                cursorId = data.id();
+            }
+        }
+
+        Specification<Product> spec = ProductSpecification.withFiltersAndCursor(
+            sku, productName, categoryName, resolvedSortBy, ascending, cursorValue, cursorId);
+
+        List<Product> products = new ArrayList<>(
+            repository.findAll(spec, PageRequest.of(0, pageSize + 1)).getContent());
+
+        boolean hasMore = products.size() > pageSize;
+        if (hasMore) {
+            products = products.subList(0, pageSize);
+        }
+
+        String nextCursor = null;
+        if (hasMore && !products.isEmpty()) {
+            Product last = products.get(products.size() - 1);
+            if ("createdAt".equals(resolvedSortBy)) {
+                nextCursor = CursorUtils.encodeCursor(last.getCreatedAt(), last.getProductId());
+            } else {
+                String fieldValue = switch (resolvedSortBy) {
+                    case "productName" -> last.getProductName();
+                    case "categoryName" -> last.getCategory().getCategoryName();
+                    default -> last.getSku();
+                };
+                nextCursor = CursorUtils.encodeCursor(fieldValue, last.getProductId());
+            }
+        }
+
+        return new PagedProductResponseDTO(
+            products.stream().map(mapper::toResponse).toList(),
+            nextCursor,
+            hasMore,
+            pageSize
+        );
+    }
+
+    private PagedProductResponseDTO findAllPagedDefault(int pageSize, String cursor) {
         PageRequest pageRequest = PageRequest.of(0, pageSize + 1);
 
         Page<Product> page;
@@ -54,22 +118,21 @@ public class ProductService {
 
         List<Product> products = page.getContent();
         boolean hasMore = products.size() > pageSize;
-
         if (hasMore) {
             products = products.subList(0, pageSize);
         }
 
         String nextCursor = null;
         if (hasMore && !products.isEmpty()) {
-            Product lastProduct = products.get(products.size() - 1);
-            nextCursor = CursorUtils.encodeCursor(lastProduct.getCreatedAt(), lastProduct.getProductId());
+            Product last = products.get(products.size() - 1);
+            nextCursor = CursorUtils.encodeCursor(last.getCreatedAt(), last.getProductId());
         }
 
         return new PagedProductResponseDTO(
-                products.stream().map(mapper::toResponse).toList(),
-                nextCursor,
-                hasMore,
-                pageSize
+            products.stream().map(mapper::toResponse).toList(),
+            nextCursor,
+            hasMore,
+            pageSize
         );
     }
 

@@ -21,8 +21,13 @@ public class ProductController {
     @GetMapping
     public PagedProductResponseDTO findAll(
             @RequestParam(defaultValue = "20") int pageSize,
-            @RequestParam(required = false) String cursor) {
-        return service.findAllPaged(pageSize, cursor);
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) String sku,
+            @RequestParam(required = false) String productName,
+            @RequestParam(required = false) String categoryName,
+            @RequestParam(required = false, defaultValue = "createdAt") String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
+        return service.findAllPaged(pageSize, cursor, sku, productName, categoryName, sortBy, sortDir);
     }
 
     @GetMapping("/{id}")

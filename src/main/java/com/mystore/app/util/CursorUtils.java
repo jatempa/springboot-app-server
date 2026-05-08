@@ -34,6 +34,24 @@ public class CursorUtils {
         }
     }
 
-    public record CursorData(Instant timestamp, Integer id) {
+    public static String encodeCursor(String value, Integer id) {
+        String raw = value + ":" + id;
+        return Base64.getUrlEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
     }
+
+    public static StringCursorData decodeStringCursor(String cursor) {
+        try {
+            String raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            int lastColon = raw.lastIndexOf(':');
+            String value = raw.substring(0, lastColon);
+            int id = Integer.parseInt(raw.substring(lastColon + 1));
+            return new StringCursorData(value, id);
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid cursor", e);
+        }
+    }
+
+    public record CursorData(Instant timestamp, Integer id) {}
+
+    public record StringCursorData(String value, Integer id) {}
 }
