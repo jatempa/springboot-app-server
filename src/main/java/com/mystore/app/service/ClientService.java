@@ -8,8 +8,10 @@ import com.mystore.app.entity.ClientSegment;
 import com.mystore.app.entity.Gender;
 import com.mystore.app.entity.Region;
 import com.mystore.app.repository.ClientRepository;
+import com.mystore.app.repository.ClientSpecification;
 import com.mystore.app.repository.RegionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -28,8 +30,13 @@ public class ClientService {
     private final ClientMapper mapper;
     private final RegionRepository regionRepository;
 
-    public Page<ClientResponseDTO> findAll(Pageable pageable) {
-        return repository.findAll(pageable).map(mapper::toResponse);
+    public Page<ClientResponseDTO> findAll(
+            String firstName, String lastName, String email,
+            String city, String segment, Integer regionId,
+            String regionName, Pageable pageable) {
+        Specification<Client> spec = ClientSpecification.withFilters(
+            firstName, lastName, email, city, segment, regionId, regionName);
+        return repository.findAll(spec, pageable).map(mapper::toResponse);
     }
 
     public ClientResponseDTO findById(Integer id) {

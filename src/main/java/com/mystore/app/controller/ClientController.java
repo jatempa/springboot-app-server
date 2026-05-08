@@ -19,8 +19,16 @@ public class ClientController {
     private final ClientService service;
 
     @GetMapping
-    public Page<ClientResponseDTO> findAll(@PageableDefault(size = 20) Pageable pageable) {
-        return service.findAll(pageable);
+    public Page<ClientResponseDTO> findAll(
+            @RequestParam(required = false) String firstName,
+            @RequestParam(required = false) String lastName,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String segment,
+            @RequestParam(required = false) Integer regionId,
+            @RequestParam(required = false) String regionName,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return service.findAll(firstName, lastName, email, city, segment, regionId, regionName, pageable);
     }
 
     @GetMapping("/{id}")
