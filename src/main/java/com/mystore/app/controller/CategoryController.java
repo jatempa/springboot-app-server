@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.web.bind.annotation.RequestParam;
+
 import java.util.List;
 
 @RestController
@@ -18,8 +20,10 @@ public class CategoryController {
     private final CategoryService service;
 
     @GetMapping
-    public List<CategoryResponseDTO> findAll() {
-        return service.findAll();
+    public List<CategoryResponseDTO> findAll(
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false, defaultValue = "asc") String sort) {
+        return service.findAll(name, sort);
     }
 
     @GetMapping("/{id}")

@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import org.springframework.data.domain.Sort;
+
 import java.util.List;
 
 @Service
@@ -21,8 +23,16 @@ public class CategoryService {
     private final CategoryRepository repository;
     private final CategoryMapper mapper;
 
-    public List<CategoryResponseDTO> findAll() {
-        return repository.findAll().stream()
+    public List<CategoryResponseDTO> findAll(String name, String sortDir) {
+        Sort sort = "desc".equalsIgnoreCase(sortDir)
+            ? Sort.by("categoryName").descending()
+            : Sort.by("categoryName").ascending();
+
+        List<Category> results = (name != null && !name.isBlank())
+            ? repository.findByCategoryNameContainingIgnoreCase(name, sort)
+            : repository.findAll(sort);
+
+        return results.stream()
             .map(mapper::toResponse)
             .toList();
     }
